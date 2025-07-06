@@ -45,6 +45,11 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     }
 
     /// Gets an item given its three dimensional position.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the position is outside the section bounds in debug mode.
+    /// Will be unchecked and may crash in release mode.
     pub fn item(&self, pos: IVec3) -> u64 {
         let item_index: usize = Self::item_index(pos);
         let palette_index: usize = self.palette_index(item_index);
@@ -52,6 +57,11 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     }
 
     /// Sets an item at the given three dimensional position.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the position is outside the section bounds in debug mode.
+    /// Will be unchecked and may crash in release mode.
     pub fn set_item(&mut self, pos: IVec3, item: u64) {
         let item_index: usize = Self::item_index(pos);
 
