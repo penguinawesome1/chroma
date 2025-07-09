@@ -40,6 +40,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     }
 
     /// Returns if there is only one item type and it has a value of zero.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.palette.len() == 1 && self.palette[0] == 0
     }
@@ -50,6 +51,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     ///
     /// Panics if the position is outside the section bounds in debug mode.
     /// Will be unchecked and may crash in release mode.
+    #[inline]
     pub fn item(&self, pos: IVec3) -> u64 {
         let item_index: usize = Self::item_index(pos);
         let palette_index: usize = self.palette_index(item_index);
@@ -84,7 +86,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         let palette_index: usize = self.palette.len() - 1;
         self.set_item_ex(item_index, palette_index);
     }
-
+    
     fn set_item_ex(&mut self, item_index: usize, palette_index: usize) {
         debug_assert!(palette_index < 1usize << self.bits_per_item, "repack needed first");
 
@@ -110,6 +112,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         }
     }
 
+    #[inline]
     const fn split_index(item_index: usize, bits_per_item: u8) -> (usize, usize) {
         let bit_offset: usize = item_index * (bits_per_item as usize);
         let word_index: usize = bit_offset / 64;
@@ -117,6 +120,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         (word_index, bit_in_word)
     }
 
+    #[inline]
     const fn item_index(pos: IVec3) -> usize {
         debug_assert!(
             pos.x >= 0 &&
@@ -132,6 +136,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         (pos.x as usize) * (H * D) + (pos.y as usize) * D + (pos.z as usize)
     }
 
+    #[inline]
     fn palette_index(&self, item_index: usize) -> usize {
         let (word_index, bit_in_word) = Self::split_index(item_index, self.bits_per_item);
 
