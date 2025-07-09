@@ -110,14 +110,14 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         }
     }
 
-    fn split_index(item_index: usize, bits_per_item: u8) -> (usize, usize) {
+    const fn split_index(item_index: usize, bits_per_item: u8) -> (usize, usize) {
         let bit_offset: usize = item_index * (bits_per_item as usize);
         let word_index: usize = bit_offset / 64;
         let bit_in_word: usize = bit_offset % 64;
         (word_index, bit_in_word)
     }
 
-    fn item_index(pos: IVec3) -> usize {
+    const fn item_index(pos: IVec3) -> usize {
         debug_assert!(
             pos.x >= 0 &&
                 pos.x < (W as i32) &&
