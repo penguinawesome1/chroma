@@ -1,4 +1,10 @@
 use glam::IVec3;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum BoundsError {
+    #[error("Position {0:?} is out of bounds for the section.")] OutOfBounds(IVec3),
+}
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone)]
@@ -46,29 +52,45 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     }
 
     /// Gets an item given its three dimensional position.
+    #[inline]
+    pub fn item(&self, pos: IVec3) -> Result<u64, BoundsError> {
+        Self::check_position_in_bounds(pos)?;
+        Ok(unsafe { self.item_unchecked(pos) })
+    }
+
+    /// Gets an item given its three dimensional position.
     ///
     /// # Panics
-    ///
-    /// Panics if the position is outside the section bounds in debug mode.
-    /// Will be unchecked and may crash in release mode.
+    /// Will be unchecked and may panic if position is out of bounds.
     #[inline]
-    pub fn item(&self, pos: IVec3) -> u64 {
+    pub unsafe fn item_unchecked(&self, pos: IVec3) -> u64 {
         let item_index: usize = Self::item_index(pos);
         let palette_index: usize = self.palette_index(item_index);
-        self.palette[palette_index]
+        unsafe { *self.palette.get_unchecked(palette_index) }
+    }
+
+    /// Sets an item at the given three dimensional position.
+    /// Returns an error if position is out of the section bounds.
+    #[must_use]
+    pub fn set_item(&mut self, pos: IVec3, item: u64) -> Result<(), BoundsError> {
+        Self::check_position_in_bounds(pos)?;
+        unsafe {
+            self.set_item_unchecked(pos, item);
+        }
+        Ok(())
     }
 
     /// Sets an item at the given three dimensional position.
     ///
     /// # Panics
-    ///
-    /// Panics if the position is outside the section bounds in debug mode.
-    /// Will be unchecked and may crash in release mode.
-    pub fn set_item(&mut self, pos: IVec3, item: u64) {
+    /// Will be unchecked and may panic if position is out of bounds.
+    pub unsafe fn set_item_unchecked(&mut self, pos: IVec3, item: u64) {
         let item_index: usize = Self::item_index(pos);
 
         if let Some(palette_index) = self.palette.iter().position(|&id| id == item) {
-            self.set_item_ex(item_index, palette_index);
+            unsafe {
+                self.set_item_ex(item_index, palette_index);
+            }
             return;
         }
 
@@ -84,31 +106,40 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         }
 
         let palette_index: usize = self.palette.len() - 1;
-        self.set_item_ex(item_index, palette_index);
+        unsafe {
+            self.set_item_ex(item_index, palette_index);
+        }
     }
-    
-    fn set_item_ex(&mut self, item_index: usize, palette_index: usize) {
+
+    unsafe fn set_item_ex(&mut self, item_index: usize, palette_index: usize) {
         debug_assert!(palette_index < 1usize << self.bits_per_item, "repack needed first");
 
         let (word_index, bit_in_word) = Self::split_index(item_index, self.bits_per_item);
         let bits_in_first_word: usize = 64 - bit_in_word;
 
-        if (self.bits_per_item as usize) <= bits_in_first_word {
-            let item_mask: u64 = (1u64 << self.bits_per_item).wrapping_sub(1);
-            self.data[word_index] &= !(item_mask << bit_in_word);
-            self.data[word_index] |= ((palette_index as u64) & item_mask) << bit_in_word;
-        } else {
-            let bits_in_second_word: usize = (self.bits_per_item as usize) - bits_in_first_word;
-            let mask_for_first_word: u64 = (1u64 << bits_in_first_word).wrapping_sub(1);
-            self.data[word_index] &= !(mask_for_first_word << bit_in_word);
-            self.data[word_index] |= ((palette_index as u64) & mask_for_first_word) << bit_in_word;
+        unsafe {
+            if (self.bits_per_item as usize) <= bits_in_first_word {
+                let item_mask: u64 = (1u64 << self.bits_per_item).wrapping_sub(1);
+                *self.data.get_unchecked_mut(word_index) &= !(item_mask << bit_in_word);
+                *self.data.get_unchecked_mut(word_index) |=
+                    ((palette_index as u64) & item_mask) << bit_in_word;
+            } else {
+                let bits_in_second_word: usize = (self.bits_per_item as usize) - bits_in_first_word;
+                let mask_for_first_word: u64 = (1u64 << bits_in_first_word).wrapping_sub(1);
+                *self.data.get_unchecked_mut(word_index) &= !(mask_for_first_word << bit_in_word);
+                *self.data.get_unchecked_mut(word_index) |=
+                    ((palette_index as u64) & mask_for_first_word) << bit_in_word;
 
-            debug_assert!(word_index + 1 < self.data.len(), "should not write beyond data bounds");
+                debug_assert!(
+                    word_index + 1 < self.data.len(),
+                    "should not write beyond data bounds"
+                );
 
-            let mask_for_second_word: u64 = (1u64 << bits_in_second_word).wrapping_sub(1);
-            self.data[word_index + 1] &= !mask_for_second_word;
-            self.data[word_index + 1] |=
-                ((palette_index as u64) >> bits_in_first_word) & mask_for_second_word;
+                let mask_for_second_word: u64 = (1u64 << bits_in_second_word).wrapping_sub(1);
+                *self.data.get_unchecked_mut(word_index + 1) &= !mask_for_second_word;
+                *self.data.get_unchecked_mut(word_index + 1) |=
+                    ((palette_index as u64) >> bits_in_first_word) & mask_for_second_word;
+            }
         }
     }
 
@@ -122,17 +153,6 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
 
     #[inline]
     const fn item_index(pos: IVec3) -> usize {
-        debug_assert!(
-            pos.x >= 0 &&
-                pos.x < (W as i32) &&
-                pos.y >= 0 &&
-                pos.y < (H as i32) &&
-                pos.z >= 0 &&
-                pos.z < (D as i32),
-            "position should be in section limits: {:?}",
-            pos
-        );
-
         (pos.x as usize) * (H * D) + (pos.y as usize) * D + (pos.z as usize)
     }
 
@@ -169,9 +189,27 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         self.data = vec![0; new_data_len];
 
         for item_index in 0..Self::VOLUME {
-            let palette_index: usize = all_palette_indices[item_index];
-            self.set_item_ex(item_index, palette_index);
+            unsafe {
+                let palette_index: usize = *all_palette_indices.get_unchecked(item_index);
+                self.set_item_ex(item_index, palette_index);
+            }
         }
+    }
+
+    #[must_use]
+    const fn check_position_in_bounds(pos: IVec3) -> Result<(), BoundsError> {
+        if
+            pos.x < 0 ||
+            pos.x >= (W as i32) ||
+            pos.y < 0 ||
+            pos.y >= (H as i32) ||
+            pos.z < 0 ||
+            pos.z >= (D as i32)
+        {
+            return Err(BoundsError::OutOfBounds(pos));
+        }
+
+        Ok(())
     }
 }
 
@@ -191,12 +229,14 @@ mod tests {
         let pos_1: IVec3 = IVec3::new(15, 1, 1);
         let pos_2: IVec3 = IVec3::new(15, 1, 2);
 
-        section.set_item(pos_1, 3);
-        section.set_item(pos_1, 2);
-        section.set_item(pos_2, 1);
+        unsafe {
+            section.set_item_unchecked(pos_1, 3);
+            section.set_item_unchecked(pos_1, 2);
+            section.set_item_unchecked(pos_2, 1);
 
-        assert_eq!(section.item(pos_1), 2);
-        assert_eq!(section.item(pos_2), 1);
+            assert_eq!(section.item_unchecked(pos_1), 2);
+            assert_eq!(section.item_unchecked(pos_2), 1);
+        }
     }
 
     #[test]
@@ -204,7 +244,9 @@ mod tests {
         let mut section: Section<16, 16, 16> = Section::new(1);
         let pos: IVec3 = IVec3::new(3, 5, 3);
 
-        section.set_item(pos, 30);
-        assert_eq!(section.item(pos), 30);
+        unsafe {
+            section.set_item_unchecked(pos, 30);
+            assert_eq!(section.item_unchecked(pos), 30);
+        }
     }
 }
