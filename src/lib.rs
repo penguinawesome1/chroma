@@ -6,7 +6,7 @@ pub enum BoundsError {
     #[error("Position {0:?} is out of bounds for the section.")] OutOfBounds(IVec3),
 }
 
-#[cfg_attr(feature = "bincode", derive(bincode::Encode, bincode::Decode))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone)]
 pub struct Section<const W: usize, const H: usize, const D: usize> {
     data: Vec<u64>,

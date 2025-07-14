@@ -5,8 +5,8 @@ edition = "2024"
 
 [dependencies]
 glam = { version = "0.30.4", default-features = false, features = ["std"] }
-bincode = { version = "2.0.1", features = ["derive"], optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
 thiserror = "2.0.12"
 
 [features]
-bincode = ["dep:bincode"]
+serde = ["dep:serde"]
