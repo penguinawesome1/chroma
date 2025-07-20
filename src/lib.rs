@@ -16,6 +16,7 @@ pub struct Section<const W: usize, const H: usize, const D: usize> {
 
 impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     const VOLUME: usize = W * H * D;
+    const BITS_PER_WORD: usize = 64;
 
     /// Creates a new section given dimensions and initial bits per item.
     ///
@@ -35,20 +36,20 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// assert!(!section.is_empty());
     /// ```
     pub fn new(bits_per_item: u8) -> Self {
-        let palette_capacity: usize = 1 << bits_per_item;
+        let palette_len: usize = 1 << bits_per_item;
         let total_bits_needed: usize = (bits_per_item as usize) * Self::VOLUME;
-        let data_len: usize = (total_bits_needed + 63) / 64;
+        let data_len: usize = (total_bits_needed + Self::BITS_PER_WORD - 1) / Self::BITS_PER_WORD;
 
-        let mut palette: Vec<u64> = Vec::with_capacity(palette_capacity);
-        palette.push(0);
-
-        Self { data: vec![0; data_len], palette, bits_per_item }
+        Self { data: vec![0; data_len], palette: vec![0; palette_len], bits_per_item }
     }
 
     /// Returns if there is only one item type and it has a value of zero.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.palette.len() == 1 && self.palette[0] == 0
+        (0..Self::VOLUME).all(|item_index| {
+            let palette_index: usize = self.palette_index(item_index);
+            unsafe { *self.palette.get_unchecked(palette_index) == 0 }
+        })
     }
 
     /// Gets an item given its three dimensional position.
@@ -85,27 +86,22 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// # Panics
     /// Will be unchecked and may panic if position is out of bounds.
     pub unsafe fn set_item_unchecked(&mut self, pos: IVec3, item: u64) {
+        let palette_index = self.palette
+            .iter()
+            .position(|&id| id == item)
+            .unwrap_or_else(|| {
+                let new_index: usize = self.palette.len();
+                self.palette.push(item);
+
+                if 1 << self.bits_per_item <= new_index {
+                    self.repack(self.bits_per_item + 1);
+                }
+
+                new_index
+            });
+
         let item_index: usize = Self::item_index(pos);
 
-        if let Some(palette_index) = self.palette.iter().position(|&id| id == item) {
-            unsafe {
-                self.set_item_ex(item_index, palette_index);
-            }
-            return;
-        }
-
-        self.palette.push(item);
-
-        let used_bits_per_item: u8 = if self.palette.len() <= 1 {
-            1
-        } else {
-            (64 - ((self.palette.len() as u64) - 1).leading_zeros()) as u8
-        };
-        if used_bits_per_item > self.bits_per_item {
-            self.repack(used_bits_per_item);
-        }
-
-        let palette_index: usize = self.palette.len() - 1;
         unsafe {
             self.set_item_ex(item_index, palette_index);
         }
@@ -206,10 +202,10 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
             pos.z < 0 ||
             pos.z >= (D as i32)
         {
-            return Err(BoundsError::OutOfBounds(pos));
+            Err(BoundsError::OutOfBounds(pos))
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 }
 
