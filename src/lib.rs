@@ -26,7 +26,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     ///
     /// ```
     /// use glam::IVec3;
-    /// use palette_bitmap::Section;
+    /// use chroma::Section;
     ///
     /// let mut section: Section<16, 16, 16> = Section::new(2);
     /// assert!(section.is_empty());
@@ -62,6 +62,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// Gets an item given its three dimensional position.
     ///
     /// # Panics
+    ///
     /// Will be unchecked and may panic if position is out of bounds.
     #[inline]
     pub unsafe fn item_unchecked(&self, pos: IVec3) -> u64 {
@@ -84,6 +85,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// Sets an item at the given three dimensional position.
     ///
     /// # Panics
+    ///
     /// Will be unchecked and may panic if position is out of bounds.
     pub unsafe fn set_item_unchecked(&mut self, pos: IVec3, item: u64) {
         let palette_index = self.palette
