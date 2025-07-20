@@ -113,7 +113,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
         debug_assert!(palette_index < 1usize << self.bits_per_item, "repack needed first");
 
         let (word_index, bit_in_word) = Self::split_index(item_index, self.bits_per_item);
-        let bits_in_first_word: usize = 64 - bit_in_word;
+        let bits_in_first_word: usize = Self::BITS_PER_WORD - bit_in_word;
 
         unsafe {
             if (self.bits_per_item as usize) <= bits_in_first_word {
@@ -144,8 +144,8 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     #[inline]
     const fn split_index(item_index: usize, bits_per_item: u8) -> (usize, usize) {
         let bit_offset: usize = item_index * (bits_per_item as usize);
-        let word_index: usize = bit_offset / 64;
-        let bit_in_word: usize = bit_offset % 64;
+        let word_index: usize = bit_offset / Self::BITS_PER_WORD;
+        let bit_in_word: usize = bit_offset % Self::BITS_PER_WORD;
         (word_index, bit_in_word)
     }
 
@@ -160,9 +160,9 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
 
         let mut item: u64 = self.data[word_index];
 
-        if bit_in_word + (self.bits_per_item as usize) > 64 {
+        if bit_in_word + (self.bits_per_item as usize) > Self::BITS_PER_WORD {
             item >>= bit_in_word;
-            let remaining_bits_n: usize = bit_in_word + (self.bits_per_item as usize) - 64;
+            let remaining_bits_n: usize = bit_in_word + (self.bits_per_item as usize) - Self::BITS_PER_WORD;
             let next_word: u64 = self.data[word_index + 1];
             item |= next_word << ((self.bits_per_item as usize) - remaining_bits_n);
         } else {
@@ -183,7 +183,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
 
         self.bits_per_item = new_bits_per_item;
         let new_total_bits_needed: usize = (self.bits_per_item as usize) * Self::VOLUME;
-        let new_data_len: usize = (new_total_bits_needed + 63) / 64;
+        let new_data_len: usize = (new_total_bits_needed + Self::BITS_PER_WORD - 1) / Self::BITS_PER_WORD;
         self.data = vec![0; new_data_len];
 
         for item_index in 0..Self::VOLUME {
