@@ -42,8 +42,8 @@ assert_eq!(item_value, 2);
 ```toml
 [dependencies]
 chroma = { git = "https://github.com/penguinawesome1/chroma.git", tag = "v0.1.0" }
-glam = "0.28"
-thiserror = "1.0"
+glam = "0.30.4"
+thiserror = "2.0.12"
 ```
 
 ## License
