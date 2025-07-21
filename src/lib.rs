@@ -46,10 +46,19 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     /// Returns if there is only one item type and it has a value of zero.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        (0..Self::VOLUME).all(|item_index| {
-            let palette_index: usize = self.palette_index(item_index);
-            unsafe { *self.palette.get_unchecked(palette_index) == 0 }
-        })
+        self.data.iter().all(|&word| word == 0)
+    }
+
+    /// Returns the dimensions (width, height, depth) of the section.
+    #[inline]
+    pub const fn dimensions(&self) -> IVec3 {
+        IVec3::new(W as i32, H as i32, D as i32)
+    }
+
+    /// Returns the total number of items in the section.
+    #[inline]
+    pub const fn volume(&self) -> usize {
+        Self::VOLUME
     }
 
     /// Gets an item given its three dimensional position.
@@ -162,7 +171,8 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
 
         if bit_in_word + (self.bits_per_item as usize) > Self::BITS_PER_WORD {
             item >>= bit_in_word;
-            let remaining_bits_n: usize = bit_in_word + (self.bits_per_item as usize) - Self::BITS_PER_WORD;
+            let remaining_bits_n: usize =
+                bit_in_word + (self.bits_per_item as usize) - Self::BITS_PER_WORD;
             let next_word: u64 = self.data[word_index + 1];
             item |= next_word << ((self.bits_per_item as usize) - remaining_bits_n);
         } else {
@@ -183,7 +193,8 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
 
         self.bits_per_item = new_bits_per_item;
         let new_total_bits_needed: usize = (self.bits_per_item as usize) * Self::VOLUME;
-        let new_data_len: usize = (new_total_bits_needed + Self::BITS_PER_WORD - 1) / Self::BITS_PER_WORD;
+        let new_data_len: usize =
+            (new_total_bits_needed + Self::BITS_PER_WORD - 1) / Self::BITS_PER_WORD;
         self.data = vec![0; new_data_len];
 
         for item_index in 0..Self::VOLUME {
