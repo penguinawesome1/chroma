@@ -38,9 +38,13 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
     pub fn new(bits_per_item: u8) -> Self {
         let palette_len: usize = 1 << bits_per_item;
         let total_bits_needed: usize = (bits_per_item as usize) * Self::VOLUME;
-        let data_len: usize = (total_bits_needed + Self::BITS_PER_WORD - 1) / Self::BITS_PER_WORD;
+        let data_len: usize = total_bits_needed / Self::BITS_PER_WORD + 1;
 
-        Self { data: vec![0; data_len], palette: vec![0; palette_len], bits_per_item }
+        Self {
+            data: vec![0; data_len],
+            palette: vec![0; palette_len],
+            bits_per_item,
+        }
     }
 
     /// Returns if there is only one item type and it has a value of zero.
@@ -193,8 +197,7 @@ impl<const W: usize, const H: usize, const D: usize> Section<W, H, D> {
 
         self.bits_per_item = new_bits_per_item;
         let new_total_bits_needed: usize = (self.bits_per_item as usize) * Self::VOLUME;
-        let new_data_len: usize =
-            (new_total_bits_needed + Self::BITS_PER_WORD - 1) / Self::BITS_PER_WORD;
+        let new_data_len: usize = new_total_bits_needed / Self::BITS_PER_WORD + 1;
         self.data = vec![0; new_data_len];
 
         for item_index in 0..Self::VOLUME {
@@ -256,6 +259,20 @@ mod tests {
         unsafe {
             section.set_item_unchecked(pos, 30);
             assert_eq!(section.item_unchecked(pos), 30);
+        }
+    }
+
+    #[test]
+    fn test_max_fill() {
+        let mut section: Section<16, 16, 16> = Section::new(0);
+
+        for x in 0..16 {
+            for y in 0..16 {
+                for z in 0..16 {
+                    let pos: IVec3 = IVec3::new(x, y, z);
+                    section.set_item(pos, (x + y + z) as u64).unwrap();
+                }
+            }
         }
     }
 }
